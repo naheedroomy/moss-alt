@@ -1,7 +1,7 @@
 import subprocess
 import time
 import platform, socket, re, uuid, json, psutil, logging
-
+import os
 import pythoncom
 import wmi
 from datetime import datetime
@@ -14,21 +14,25 @@ import shutil
 import time
 import PySimpleGUI as sg
 import threading
+import pyminizip
 
 count = 1
 status = True
 from mss import mss
+from checksumdir import dirhash
+
 
 import os
 
+DESKTOP_PATH = os.path.expanduser("~\Desktop")
 datetime_str = str(datetime.now())
 datetime_str_mod = datetime_str.replace(':', '-')
 datetime_str_mod_2 = datetime_str_mod.replace('.', '-')
-
+print(DESKTOP_PATH)
 
 def create_folder():
     global datetime_str_mod_2
-    mydir = f"C:\\Users\\Administrator\\Desktop\\test\\{datetime_str_mod_2}"
+    mydir = f"{DESKTOP_PATH}\\mossalt\\{datetime_str_mod_2}"
     CHECK_FOLDER = os.path.isdir(mydir)
 
     if not CHECK_FOLDER:
@@ -39,7 +43,7 @@ def create_folder():
 def take_screenshot2():
     global count
     global datetime_str_mod_2
-    final_dir = f"C:\\Users\\Administrator\\Desktop\\test\\{datetime_str_mod_2}\\"
+    final_dir = f"{DESKTOP_PATH}\\mossalt\\{datetime_str_mod_2}\\"
     final_dir_2 = final_dir + str(count) + ".jpg"
     with mss() as sct:
         sct.shot(mon=-1, output=final_dir_2)
@@ -64,7 +68,7 @@ def get_system_info():
         info['processor'] = platform.processor()
         info['ram'] = str(round(psutil.virtual_memory().total / (1024.0 ** 3))) + " GB"
         info['gpu'] = gpu_info
-        final_dir = f"C:\\Users\\Administrator\\Desktop\\test\\{datetime_str_mod_2}\\"
+        final_dir = f"{DESKTOP_PATH}\\mossalt\\{datetime_str_mod_2}\\"
         final_dir_2 = final_dir + "system_info.json"
         with open(final_dir_2, "w") as f:
             f.write(json.dumps(info))
@@ -75,7 +79,7 @@ def get_system_info():
 def get_processes():
     pythoncom.CoInitialize()
     global datetime_str_mod_2
-    final_dir = f"C:\\Users\\Administrator\\Desktop\\test\\{datetime_str_mod_2}\\"
+    final_dir = f"{DESKTOP_PATH}\\mossalt\\{datetime_str_mod_2}\\"
     final_dir_2 = final_dir + "processes.txt"
     output = os.popen('wmic process get description, processid').read()
     now = datetime.now().strftime("%H:%M:%S")
@@ -87,17 +91,26 @@ def get_processes():
 
 
 def create_zip_with_password():
-    dir_output = f"C:\\Users\\Administrator\\Desktop\\test\\{datetime_str_mod_2}"
-    zip_file_name = dir_output + ".zip"
-    password = "test"
-    zip_file = zipfile.ZipFile(zip_file_name, "w", zipfile.ZIP_DEFLATED)
-    for folder, subfolders, files in os.walk(dir_output):
-        for file in files:
-            zip_file.write(os.path.join(folder, file), os.path.relpath(os.path.join(folder, file), dir_output),
-                           compress_type=zipfile.ZIP_DEFLATED)
-    zip_file.setpassword(password.encode("utf-8"))
-    zip_file.close()
-    shutil.rmtree(dir_output)
+    global datetime_str_mod_2
+    directory_name = f"{DESKTOP_PATH}\\mossalt\\{datetime_str_mod_2}"
+    zip_created_directory = f"{DESKTOP_PATH}\\mossalt\\"
+    directory = directory_name
+    md5hash = dirhash(directory, 'md5')
+    # write md5 value to a textfile in the directory
+    with open(f"{directory_name}\\md5.txt", "w") as f:
+        f.write(md5hash)
+
+    # use pyminizip to create a zip file with password
+    pyminizip.compress(f"{directory_name}\\md5.txt", f"{directory_name}\\checksum.zip", "noneshallpass", 0)
+
+    name_of_archive = f"{zip_created_directory}\\MOSS-{datetime_str_mod_2}"
+
+    shutil.make_archive(name_of_archive, 'zip', directory_name)
+    # directory = directory_name
+    # md5hash = dirhash(directory, 'md5')
+    # print(md5hash)
+
+
 
 
 def schedule_job():
@@ -120,8 +133,13 @@ def use_threading():
 
 
 def stop_job():
+    global datetime_str_mod_2
     global status
     status = False
+    create_zip_with_password()
+    time.sleep(5)
+    mydir = f"{DESKTOP_PATH}\\mossalt\\{datetime_str_mod_2}"
+    shutil.rmtree(mydir)
 
 
 def main():
@@ -140,6 +158,9 @@ def main():
             use_threading()
         elif event == 'Stop':
             stop_job()
+            window['Stop'].update(disabled=True)
+            window.refresh()
+            time.sleep(7)
             window['Exit'].update(disabled=False)
         elif event == '-FUNCTION COMPLETED-':
             sg.popup('Your function completed!')
